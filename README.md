@@ -15,7 +15,7 @@ The L-BFGS-B algorithm uses a limited memory BFGS
 representation of the Hessian matrix, making it well-suited
 for optimization problems with a large number of design
 variables. Many wrappers (C/C++, Matlab, Python, Julia) to
-the [original L-BFGS-B Fortran implementation] exist, but a
+the [original L-BFGS-B Fortran implementation][1] exist, but a
 pure Matlab implementation of the algorithm (as far as I
 could tell) did not exist. This is likely due to performance
 concerns. Nevertheless, the single file implementation
