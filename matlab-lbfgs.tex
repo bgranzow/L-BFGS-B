@@ -1,0 +1,64 @@
+\documentclass[11pt]{article}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[fleqn]{amsmath}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{hyperref}
+
+\title{A Matlab implementation of L-BFGS-B}
+\author{Brian Granzow}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction and motivation}
+In this report, we discuss a MATLAB implementation of
+the L-BFGS-B \cite{lbfgsb} algorithm for solving
+bound-constrained optimization problems of the form:
+%
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f(x) \\
+& \text{subject to}
+& & l \leq x \leq u,
+\end{aligned}
+\end{equation}
+%
+where $f: \mathbb{R}^n \to \mathbb{R}$ and $x,l,u \in \mathbb{R}^n$.
+The L-BFGS-B algorithm is a quasi-Newton gradient-based
+optimization algorithm that utilizes limited memory
+BFGS approximations to the Hessian matrix
+$\frac{\partial^2 f}{\partial x_i \partial x_j}$, making
+it well-suited for optimization problems with a large
+number of design variables $n$.
+
+This report is structured as follows. First we present
+a high-level background 
+
+\url{https://github.com/bgranzow/L-BFGS-B}
+
+\section{The L-BFGS-B algorithm}
+
+\section{Results}
+
+\section{Conclusions}
+
+\begin{thebibliography}{99}
+\bibitem{lbfgsb}
+Byrd, R. H., Lu, P., Nocedal, J., \& Zhu, C. (1995).
+\emph{A limited memory algorithm for bound constrained optimization}.
+SIAM Journal on Scientific Computing, 16(5), 1190-1208.
+\bibitem{optimization}
+Nocedal, Jorge, and Stephen Wright.
+\emph{Numerical optimization}. Springer Science \& Business Media, 2006.
+\end{thebibliography}
+
+\newpage
+
+\end{document}
