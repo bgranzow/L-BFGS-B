@@ -17,10 +17,10 @@ for optimization problems with a large number of design
 variables. Many wrappers (C/C++, Matlab, Python, Julia) to
 the [original L-BFGS-B Fortran implementation][1] exist, but a
 pure Matlab implementation of the algorithm (as far as I
-could tell) did not exist. This is likely due to performance
-concerns. Nevertheless, the single file implementation
-(`LBFGS.m`) of the L-BFGS-B algorithm provided by this
-repository seeks to provide Matlab users a convenient way to
+could tell) did up to this point exist. This is likely due
+to performance concerns. Nevertheless, this single file
+implementation (`LBFGS.m`) of the L-BFGS-B algorithm
+seeks to provide Matlab users a convenient way to
 optimize bound-constrained problems with the L-BFGS-G
 algorithm without installing third-party software.
 
