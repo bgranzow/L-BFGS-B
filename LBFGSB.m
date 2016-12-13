@@ -1,10 +1,21 @@
-function [x] = LBFGSB(func,x0,l,u,options)
+function [x,xhist] = LBFGSB(func,x0,l,u,options)
+% function [x,xhist] = LBFGSB(func,x0,l,u,options)
+% Perform bound-constrained optimization with L-BFGS-B.
+% INPUTS:
+%  x0: [n,1] initial design vector.
+%  l: [n,1] lower bound constraint vector.
+%  u: [n,1] upper bound constraint vector.
+%  options: matlab struct with the optional components:
+%   'm': the maximum number of stored L-BFGS iteration pairs.
+%   'tol': the convergence tolerance for the projected gradient.
+%   'display': true/false - should iterations be displayed?
+%   'xhistory':
 
 % validate the inputs
 [x0] = validate_inputs(func,x0,l,u);
 
 % set options
-[m,tol,max_iters,display] = set_options(options);
+[m,tol,max_iters,display,xhistory] = set_options(options);
 
 % initialize BFGS variables
 n = length(x0);
@@ -29,6 +40,12 @@ if (display)
   fprintf('%3d %16.8f %16.8f\n',k,f,opt);
 end
 
+% save the xhistory, if specified
+xhist = [];
+if (xhistory)
+  xhist = [xhist x0];
+end
+
 % perform quasi-Newton iterations
 while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   
@@ -39,6 +56,7 @@ while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   % compute the new search direction
   [xc, c] = get_cauchy_point(x,g,l,u,theta,W,M);
   [xbar, line_search_flag] = subspace_min(x,g,l,u,xc,c,theta,W,M);
+
   alpha = 1.0;
   if (line_search_flag)
     [alpha] = strong_wolfe(func,x,f,g,xbar-x);
@@ -51,7 +69,9 @@ while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   s = x - x_old;
   curv = abs(transpose(s)*y);
   if (curv < eps)
-    fprintf(' warning: negative curvature detected');
+    fprintf(' warning: negative curvature detected\n');
+    fprintf('          skipping L-BFGS update\n');
+    k = k+1;
     continue;
   end
   if (k < m)
@@ -71,8 +91,11 @@ while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   MM = [D transpose(L); L theta*transpose(S)*S];
   M = inv(MM);
   
-  % update the iteration counter
+  % update the iteration
   k = k+1;
+  if (xhistory)
+    xhist = [xhist x];
+  end
   
   % print some useful information
   if (display)
@@ -104,7 +127,7 @@ function [x0] = validate_inputs(func,x0,l,u)
 %  none
 
 % sanity check of inputs
-if ( nargout(func) ~=2 && nargout(func) ~= -2 )
+if ( nargout(func) ~=2 && nargout(func) ~= -1 )
   error('input func return must be of form [f,g]');
 end
 if ( ~ iscolumn(x0) )
@@ -141,7 +164,7 @@ end
 
 end
 
-function [m,tol,max_iters,display] = set_options(options)
+function [m,tol,max_iters,display,xhistory] = set_options(options)
 % function [m,tol,max_iters] = set_options(options)
 % Set optionally defined user input parameters.
 % INPUTS:
@@ -150,10 +173,13 @@ function [m,tol,max_iters,display] = set_options(options)
 %  m: the limited memory storage size.
 %  tol: the convergence tolerance criteria.
 %  max_iters: the maximum number of quasi-Newton iterations.
+%  display: true/false should iteration information be displayed?
+%  xhistory: true/false should the entire search history be stored?
 m = 10;
 tol = 1.0e-5;
 max_iters = 20;
 display = true;
+xhistory = false;
 if ( isfield(options, 'm') )
   m = options.m;
 end
@@ -165,6 +191,9 @@ if ( isfield(options, 'max_iters') )
 end
 if ( isfield(options, 'display') )
   display = options.display;
+end
+if ( isfield(options, 'xhistory') )
+  xhistory = options.xhistory;
 end
 
 end
@@ -219,14 +248,13 @@ for i=1:n
   else
     t(i) = realmax;
   end
-  if ( t(i) == 0 )
+  if ( t(i) < eps )
     d(i) = 0.0;
   end
 end
 tuple = [t linspace(1,n,n)'];
 tuple = sortrows(tuple);
-negrows = find(tuple < 0);
-F = tuple( setdiff(1:n, negrows), 2);
+F = tuple(:,2);
 
 end
 
@@ -248,7 +276,7 @@ function [xc, c] = get_cauchy_point(x,g,l,u,theta,W,M)
 
 % perform the initialization step
 [tt,d,F] = get_breakpoints(x,g,l,u);
-xc = zeros(length(x), 1);
+xc = x;
 p = transpose(W) * d;
 c = zeros(size(W,2),1);
 fp = -transpose(d)*d;
@@ -256,17 +284,21 @@ fpp = -theta*fp - transpose(p)*M*p;
 fpp0 = -theta*fp;
 dt_min = -fp/fpp;
 t_old = 0;
-num_segments = length(F);
-i = 1;
+for j=1:length(x)
+  i = j;
+  if (F(i) > 0)
+    break;
+  end
+end
 b = F(i);
 t = tt(b);
 dt = t-t_old;
 
 % examine the subsequent segments
-while ( (dt_min > dt) )
+while ( (dt_min > dt) && (i <= length(x)) )
   if ( d(b) > 0)
     xc(b) = u(b);
-  else
+  elseif ( d(b) < 0)
     xc(b) = l(b);
   end
   zb = xc(b) - x(b);
@@ -281,18 +313,17 @@ while ( (dt_min > dt) )
   dt_min = -fp/fpp;
   t_old = t;
   i = i+1;
-  if (i > num_segments)
-    break;
+  if (i <= length(x))
+    b = F(i);
+    t = tt(b);
+    dt = t - t_old;
   end
-  b = F(i);
-  t = tt(b);
-  dt = t - t_old;
 end
 
 % perform final updates
 dt_min = max(dt_min, 0);
 t_old = t_old + dt_min;
-for j=i:num_segments
+for j=i:length(xc)
   idx = F(j);
   xc(idx) = x(idx) + t_old*d(idx);
 end
@@ -469,7 +500,7 @@ function [alpha] = alpha_zoom(func,x0,f0,g0,p,alpha_lo,alpha_hi)
 % initialize variables
 c1 = 1e-4;
 c2 = 0.9;
-i =0;
+i = 0;
 max_iters = 20;
 dphi0 = transpose(g0)*p;
 

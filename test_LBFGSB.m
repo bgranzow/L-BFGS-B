@@ -1,4 +1,4 @@
-function [] = test_LBFGS()
+function [] = test_LBFGSB()
 test_1();
 test_2();
 test_3();
@@ -108,12 +108,12 @@ end
 end
 
 function test_8()
-x0 = [8; 8];
-l = [2; 2];
-u = [inf; inf];
+x0 = [-1.2; 1];
+l = [-inf; -inf];
+u = [0.5; inf];
 opts = struct('max_iters',100);
 x = LBFGSB(@rosenbrock,x0,l,u,opts);
-x_exact = [2;4];
+x_exact = [0.5;0.25];
 if ( max(abs(x - x_exact)) < 1.0e-5 )
   fprintf('test 8: passed :)\n\n');
 else
