@@ -1,12 +1,10 @@
-function [x] = LBFGSB(func,x0,l,u)
+function [x] = LBFGSB(func,x0,l,u,options)
 
 % validate the inputs
 [x0] = validate_inputs(func,x0,l,u);
 
-% set default options
-m = 10;
-tol = 1.0e-5;
-max_iters = 100;
+% set options
+[m,tol,max_iters,display] = set_options(options);
 
 % initialize BFGS variables
 n = length(x0);
@@ -22,18 +20,21 @@ x = x0;
 
 % initialize quasi-Newton iterations
 k = 0;
-fprintf(' iter        f(x)          optimality\n')
-fprintf('-------------------------------------\n')
-opt = get_optimality(x,g,l,u);
-fprintf('%3d %16.8f %16.8f\n',k,f,opt);
+
+% print out some useful information, if specified
+if (display)
+  fprintf(' iter        f(x)          optimality\n')
+  fprintf('-------------------------------------\n')
+  opt = get_optimality(x,g,l,u);
+  fprintf('%3d %16.8f %16.8f\n',k,f,opt);
+end
 
 % perform quasi-Newton iterations
 while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   
-  % update objective information
+  % update search information
   x_old = x;
   g_old = g;
-  f_old = f;
   
   % compute the new search direction
   [xc, c] = get_cauchy_point(x,g,l,u,theta,W,M);
@@ -74,13 +75,19 @@ while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   k = k+1;
   
   % print some useful information
-  opt = get_optimality(x,g,l,u);
-  fprintf('%3d %16.8f %16.8f\n',k,f,opt);
+  if (display)
+    opt = get_optimality(x,g,l,u);
+    fprintf('%3d %16.8f %16.8f\n',k,f,opt);
+  end
   
 end
 
 if (k == max_iters)
   fprintf(' warning: maximum number of iterations reached\n')
+end
+
+if ( get_optimality(x,g,l,u) < tol )
+  fprintf(' stopping because convergence tolerance met!\n')
 end
 
 end
@@ -96,20 +103,68 @@ function [x0] = validate_inputs(func,x0,l,u)
 % OUTPUTS:
 %  none
 
-assert((nargout(func)==2)||(nargout(func)==-2));
-assert(iscolumn(x0));
-assert(iscolumn(l));
-assert(iscolumn(u));
-assert(length(x0) == length(l));
-assert(length(l) == length(u));
+% sanity check of inputs
+if ( nargout(func) ~=2 && nargout(func) ~= -2 )
+  error('input func return must be of form [f,g]');
+end
+if ( ~ iscolumn(x0) )
+  error('input x0 must be a column vector')
+end
+if ( ~ iscolumn(l) )
+  error('input l must be a column vector')
+end
+if ( ~ iscolumn(u) )
+  error('input u must be a column vector')
+end
+if ( length(l) ~= length(x0) )
+  error('input l must be of equal length to input x0');
+end
+if ( length(u) ~= length(x0) )
+  error('input u must be of equal length to input xo');
+end
 
 % pull back x0 into the feasible design space if needed
+modified_x0 = false;
 for i=1:length(x0)
   if ( x0(i) < l(i) )
     x0(i) = l(i);
+    modified_x0 = true;
   elseif ( x0(i) > u(i) )
     x0(i) = u(i);
+    modified_x0 = true;
   end
+end
+if (modified_x0)
+  fprintf(' note: initial guess x0 outside of bounds\n');
+  fprintf('       projecting x0 back into the feasible space\n');
+end
+
+end
+
+function [m,tol,max_iters,display] = set_options(options)
+% function [m,tol,max_iters] = set_options(options)
+% Set optionally defined user input parameters.
+% INPUTS:
+%  options: a matlab struct ('m','tol','max_iters').
+% OUTPUTS:
+%  m: the limited memory storage size.
+%  tol: the convergence tolerance criteria.
+%  max_iters: the maximum number of quasi-Newton iterations.
+m = 10;
+tol = 1.0e-5;
+max_iters = 20;
+display = true;
+if ( isfield(options, 'm') )
+  m = options.m;
+end
+if ( isfield(options, 'tol') )
+  tol = options.tol;
+end
+if ( isfield(options, 'max_iters') )
+  max_iters = options.max_iters;
+end
+if ( isfield(options, 'display') )
+  display = options.display;
 end
 
 end
@@ -309,10 +364,6 @@ end
 
 % compute W^T Z, the restriction of W to free variables.
 WTZ = transpose(W)*Z;
-%WTZ = zeros(size(W,2), num_free_vars);
-%for i=1:num_free_vars
-%  WTZ(:,i) = W(free_vars_idx(i), :);
-%end
 
 % compute the reduced gradient of mk restricted to free variables.
 rr = g + theta*(xc-x) - W*(M*c);
