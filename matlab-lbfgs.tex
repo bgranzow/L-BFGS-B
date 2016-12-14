@@ -6,7 +6,13 @@
 \usepackage{color}
 \usepackage{graphicx}
 \usepackage{subcaption}
-\usepackage{hyperref}
+\usepackage[colorlinks = true,
+            linkcolor = blue,
+            urlcolor  = blue,
+            citecolor = blue,
+            anchorcolor = blue]{hyperref}
+
+\newcommand{\bs}[1]{\boldsymbol{#1}}
 
 \title{A Matlab implementation of L-BFGS-B}
 \author{Brian Granzow}
@@ -38,25 +44,386 @@ $\frac{\partial^2 f}{\partial x_i \partial x_j}$, making
 it well-suited for optimization problems with a large
 number of design variables $n$.
 
-This report is structured as follows. First we present
-a high-level background 
+The \href{http://users.iems.northwestern.edu/~nocedal/lbfgsb.html}
+{original L-BFGS-B implementation}  \cite{lbfgsb3}
+and subsequent releases were implemented in Fortran.
+Since its original release,
+\href{https://github.com/stephenbeckr/L-BFGS-B-C}{C/C++}
+\cite{C},
+\href{https://github.com/pcarbo/lbfgsb-matlab}{Matlab}
+\cite{Matlab},
+\href{https://github.com/mkobos/lbfgsb_wrapper}{Java}
+\cite{Java},
+and \href{https://github.com/yuhonglin/Lbfgsb.jl}{Julia}
+\cite{Julia}
+wrappers for the L-BFGS-B Fortan library have been released.
+Up to this point, however, an open-source pure Matlab
+implementation of the algorithm has been difficult to
+come by. This is potentially due to performance reasons,
+as the L-BFGS-B algorithm concerns itself mainly with large
+scale optimization problems, for which compiled low-level
+languages will almost certainly outperform Matlab.
 
-\url{https://github.com/bgranzow/L-BFGS-B}
+Nevertheless, the aim of this report is to discuss a
+recently developed Matlab implementation of the algorithm
+that provides Matlab users a convenient way to solve
+box-constrained optimization problems with L-BFGS-B using
+only a single file Matlab implementation \emph{LBFGS.m},
+removing the additional step of installing a third-party
+library. This implementation is readily available for use at:
+\begin{itemize}
+\item \url{https://github.com/bgranzow/L-BFGS-B}{}
+\end{itemize}
+
+The remainder of this report is structured as follows.
+We begin by presenting a high-level overview of the
+L-BFGS-B algorithm, while making appropriate observations
+about its Matlab implementation. Then we discuss several
+basic regression tests that have been implemented to
+ensure the L-BFGS-B Matlab implementation solves
+bound-constrained optimization problems appropriately.
 
 \section{The L-BFGS-B algorithm}
 
+From a high-level the L-BFGS-B algorithm iterates over
+quasi-Newton steps. For a given iteration $k$,
+the objective function is approximated by a quadratic model
+at a point $x_k$ as:
+%
+\begin{equation}
+m_k(x) = f_k + g^T_k(x-x_k) + \frac12 (x-x_k)^T B_k (x-x_k),
+\label{eq:quadratic}
+\end{equation}
+%
+where $f_k$ represents the objective function $f$ evaluated
+at $x_k$, $g_k$ denotes the objective gradient evaluated at
+$x_k$, and $B_k$ represents a limited memory BFGS approximation
+to the Hessian evaluated at $x_k$. Using this quadratic model,
+the L-BFGS-B algorithm can be outlined using the following steps:
+%
+\begin{enumerate}
+\item Check if the inf-norm of the gradient $g_k$ projected onto
+the feasible design space is less than a user-specified tolerance.
+If it is, then return successfully.
+\item Find the Cauchy point $x^c$, that minimizes $m_k$ in
+the  steepest descent direction $-g_k$ projected onto the
+feasible design space. Once found, the Cauchy point $x^c$
+is used to identify active design variables $A(x)$ (those that
+are identified as fixed at either an upper or lower bound)
+and free variables $F(x)$ (those that are identified as inside the
+feasible design space). Conceptually, this is like the algorithm
+`peeking ahead' an iteration to determine which variables will
+likely be active and inactive.
+\item The quadratic model $m_k$ is then minimized for the set
+of free variables $F(x)$ in an unconstrained manner, and then
+backtracked into the feasible design space to obtain
+$\bar{x}_k$.
+\item The new search direction is computed as $d_k = \bar{x}_k - x_k$
+and a line-search method is used to find a step length $\alpha_k$
+that satisfies the strong-Wolfe conditions to compute the new
+design variables $x_{k+1}$.
+\item The L-BFGS Hessian approximation $B_{k+1}$ is computed based
+on the new step $x_{k+1}$ and a new iteration is started.
+\end{enumerate}
+%
+These steps are now discussed from a high-level, with references
+to their implementation.
+
+\subsection{Convergence criteria}
+
+Convergence is satisfied if the following criteria holds:
+%
+\begin{equation}
+\| P(x_k - g_k,l,u) - x_k \| < \text{tol},
+\end{equation}
+%
+where tol is a user-specified tolerance and
+%
+\begin{equation}
+P(x,l,u) := 
+\begin{aligned}
+\begin{cases}
+l_i \quad & \text{if} \; x_i < l_i \\
+u_i \quad & \text{if} \; x_i > u_i \\
+x_i \quad & \text{otherwise}.
+\end{cases}
+\end{aligned}
+\label{eq:projection}
+\end{equation}
+Note that $P(x_k - g_k,l,u) - x_k$ denotes
+the gradient projected onto the feasible design space.
+This convergence criteria is computed in the
+function
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/LBFGSB.m#L201}
+{get\_optimality} in \emph{LBFGS.m}.
+
+\subsection{Computation of the Cauchy point}
+
+For simplicity, we will denote the Hessian
+approximation $B_k$, the objective gradient
+$g_k$, and the design vector $x_k$ at the $k^{th}$
+iteration as $B$, $g$, and $x$, respectively.
+The Cauchy point $x^c$ is parameterized
+as $x^c = x(t^*)$, where $t^*$ is the first
+local minimizer along the piece-wise linear
+path $P(t) = P(x-tg,l,u)$, where $P$ was previously
+defined in equation \eqref{eq:projection}.
+Each coordinate of the piece-wise linear path
+$x_i(t)$ is defined as $x_i - t g_i \quad t_i \in [0, t_i]$,
+where the breakpoint $t_i$ is given as:
+%
+\begin{equation}
+t_i =
+\begin{aligned}
+\begin{cases}
+(x_i - u_i) / g_i \quad & \text{if} \; g_i < 0, \\
+(x_i - l_i) / g_i \quad & \text{if} \; g_i > 0, \\
+\infty \quad & \text{otherwise}.
+\end{cases}
+\end{aligned}
+\end{equation}
+%
+The breakpoints $t_i$ are sorted into an ordered
+$\{t^j : t^{j-1} < t^j, j=1,2,\dots,n \}$
+and each interval $[t^{j-1},t^j]$ is subsequently
+analyzed until a local minimizer $t^*$ is found.
+The details of this minimization process can
+be found in Algorithm CP of \cite{lbfgsb}, and
+are implemented in the routine
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/LBFGSB.m#L261}
+{get\_cauchy\_point} in \emph{LBFGS.m}.
+
+\subsection{Subspace minimization}
+
+Once the Cauchy point $x^c$ has been computed, the
+quadratic model $m_k$ is minimized for the free
+variables of $x^c$, those whose values are not equal to upper
+or lower bound values, in an unconstrained manner to
+obtain a solution vector $d^u$. This is done by directly
+inverting the L-BFGS-B Hessian approximation $B_k$ using
+the Sherman-Morrison-Woodbury formula. Once the unconstrained minimizer
+is found, it is backtracked towards the feasible region with a
+positive scaling parameter $\alpha^*$ to provide a backtracked solution
+vector $d_k = \alpha^* d^u$. This provides enough information to compute
+$\bar{x}_k$, the minimization to the subspace problem with
+the bounds imposed on the design variables.
+The details of the subspace minimization
+are given in Section 5.1 of \cite{lbfgsb} and is implemented
+in \emph{LBFGS.m} in the routine
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/LBFGSB.m#L358}
+{subspace\_min}.
+
+\subsection{Strong-Wolfe line search}
+
+The new search direction is then given as $d_k = \bar{x}_k - x_k$.
+A line search algorithm is performed in this direction to find
+a step length $\alpha_k$ that satisfies the strong-Wolfe
+conditions given by the sufficient decrease condition:
+%
+\begin{equation}
+f(x_{k+1}) \leq f(x_k) + c_1 \alpha_k g_k^T d_k,
+\end{equation}
+%
+and the curvature condition:
+%
+\begin{equation}
+| g^T_{k+1}  d_k | \leq c_2 | g^T_k d_k |,
+\end{equation}
+%
+where $c_1$ and $c_2$ are chosen to be $10^{-4}$ and
+$0.9$, respectively.
+The algorithm to compute this line search is given
+by Algorithms 3.5 and 3.6 of the reference
+\cite{optimization}, and is implemented in
+\emph{LBFGS.m} in the routine
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/LBFGSB.m#L427}
+{strong\_wolfe}.
+
+\subsection{L-BFGS updates}
+
+Limited memory BFGS Hessian approximations store $m$ iteration
+pairs $Y_k = [y_{k-m}, y_{k-m+1}, \dots, y_{k-1}]$ and
+$S_k = [s_{k-m}, s_{k-m+1}, \dots, s_{k-1}]$ where
+$y_k = g_k - g_{k-1}$ and $s_k = s_k - s_{k-1}$, where the
+Hessian approximation $B_k$ can be written as:
+%
+\begin{equation}
+B_k = \theta I - W_k M^{-1}_k W^T_k.
+\end{equation}
+%
+The expressions for the matrices $W_k$ and $M_k$ are
+outlined in Section 3 of reference \cite{lbfgsb}. The updates
+to the L-BFGS data structures occur inside the quasi-Newton
+iterations in \emph{LBFGS.m} starting on
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/LBFGSB.m#L66}{line 66}.
+
 \section{Results}
+
+\subsection{Convex quadratic functions}
+
+The \href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m}
+{LBFGS.m} implementation is bundled with a series of basic
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m}
+{regression tests} that ensure the algorithm performs as
+expected for the two simple objective functions:
+%
+\begin{equation}
+f_1(x) = x^T x,
+\end{equation}
+and
+\begin{equation}
+f_2(x) = - x^T x.
+\end{equation}
+%
+with $n = 100$ design variables, $m=10$ stored iteration
+pairs for the L-BFGS data structures, and a convergence
+tolerance of $10^{-5}$. Using these two objective
+functions, six regression tests are defined.
+
+The first regression test is defined as the problem
+%
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f_1(x) \\
+& \text{subject to}
+& & -10 \leq x \leq 10,
+\end{aligned}
+\end{equation}
+%
+with the initial starting guess $x_i = 5 \; \forall i$.
+The solution behaves essentially as an unconstrained
+optimization problem and converges in a single quasi-Newton
+iteration to the correct solution
+$x_i = 0 \; \forall i$.
+
+The second regression test is identical to the first,
+with the exception that the lower bound is set to $l = 1$
+rather than $10$. Again this regression test converges in a single
+quasi-Newton iteration to the correct solution
+$x_i = 1 \; \forall i$.
+
+The third regression test is identical to the first,
+with the exception that the initial guess is defined outside
+of the box-constraints, such that $x_i = -20 \; \forall i$.
+This test converges in two quasi-Newton iterations to the
+correct solution $x_i = 0 \; \forall i$.
+
+The fourth regression test is defined as
+%
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f_1(x) \\
+& \text{subject to}
+& & 1 \leq x \leq 10,
+\end{aligned}
+\end{equation}
+%
+with the initial guess defined as a random
+vector whose components satisfy $9 \leq x_i \leq 10 \; \forall i$.
+This test converges to the correct solution
+$x_i = 1 \; \forall i$ in one quasi-Newton iteration.
+
+To verify upper bounds can be properly satisfied, the
+fifth regression test is defined as:
+%
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f_2(x) \\
+& \text{subject to}
+& & 0 \leq x \leq 10,
+\end{aligned}
+\end{equation}
+%
+where the initial design vector is chosen as
+$x_i = 5 \; \forall i$. This test converges
+correctly to the solution $x_i = 10 \; \forall i$
+in one quasi-Newton iteration.
+
+Finally, the sixth test is defined such that
+a non-uniform lower bound constraint is set,
+where the optimization problem is defined as:
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f_1(x) \\
+& \text{subject to}
+& & \sin(\pi \frac{1-i}{n}) \leq x_i \leq 10  \quad \forall i
+\end{aligned}
+\end{equation}
+%
+
+\subsection{A bounded Rosenbrock example}
+
+\begin{equation}
+f_3(\bs{x}) = 100(x_2-x_1^2)^2 + (1-x_1)^2 
+\end{equation}
+
+\begin{figure}[hbt]
+\centering
+\includegraphics[width=0.75\textwidth]{rosenbrock_unbounded}
+\caption{Search history for unconstrained Rosenbrock example}
+\label{fig:rosenbrock_unconstrained}
+\end{figure}
+
+\begin{figure}[hbt]
+\centering
+\includegraphics[width=0.75\textwidth]{rosenbrock_bounded}
+\caption{Search history for constrained Rosenbrock example}
+\label{fig:rosenbrock_constrained}
+\end{figure}
 
 \section{Conclusions}
 
 \begin{thebibliography}{99}
+
 \bibitem{lbfgsb}
 Byrd, R. H., Lu, P., Nocedal, J., \& Zhu, C. (1995).
 \emph{A limited memory algorithm for bound constrained optimization}.
 SIAM Journal on Scientific Computing, 16(5), 1190-1208.
+
 \bibitem{optimization}
-Nocedal, Jorge, and Stephen Wright.
+Nocedal, J. and Wright, S.
 \emph{Numerical optimization}. Springer Science \& Business Media, 2006.
+
+\bibitem{lbfgsb3}
+Byrd, R. H., Lu, P., Nocedal, J., \& Zhu, C.
+\emph{L-BFGS-B}.
+\url{http://users.iems.northwestern.edu/~nocedal/lbfgsb.html}.
+Accessed: 2016-12-13.
+
+\bibitem{C}
+Becker, S.
+\emph{L-BFGS-B-C}
+\url{https://github.com/stephenbeckr/L-BFGS-B-C}.
+Accessed: 2016-12-13.
+
+\bibitem{Matlab}
+Carbonetto, P.
+\emph{lbfgsb-matlab}.
+\url{https://github.com/pcarbo/lbfgsb-matlab}.
+Accessed: 2016-12-13.
+
+\bibitem{Java}
+Kobos, M.
+\emph{lbfgsb\_wrapper}
+\url{https://github.com/mkobos/lbfgsb_wrapper}.
+Accessed: 2016-12-13.
+
+\bibitem{Julia}
+Yu, H.
+\emph{Lbfgsb.jl}.
+\url{https://github.com/yuhonglin/Lbfgsb.jl}.
+Accessed: 2016-12-13.
+
+\bibitem{LBFGS}
+Byrd, Richard H., Jorge Nocedal, and Robert B. Schnabel.
+\emph{Representations of quasi-Newton matrices and their
+use in limited memory methods}.
+Mathematical Programming 63.1-3 (1994): 129-156.
+
 \end{thebibliography}
 
 \newpage
