@@ -9,7 +9,7 @@ function [x,xhist] = LBFGSB(func,x0,l,u,options)
 %   'm': the maximum number of stored L-BFGS iteration pairs.
 %   'tol': the convergence tolerance for the projected gradient.
 %   'display': true/false - should iterations be displayed?
-%   'xhistory':
+%   'xhist': true/false - should the entire search history be stored?
 
 % validate the inputs
 [x0] = validate_inputs(func,x0,l,u);
