@@ -6,6 +6,7 @@
 \usepackage{color}
 \usepackage{graphicx}
 \usepackage{subcaption}
+\usepackage{fancyvrb}
 \usepackage[colorlinks = true,
             linkcolor = blue,
             urlcolor  = blue,
@@ -134,7 +135,7 @@ to their implementation.
 Convergence is satisfied if the following criteria holds:
 %
 \begin{equation}
-\| P(x_k - g_k,l,u) - x_k \| < \text{tol},
+\| P(x_k - g_k,l,u) - x_k \|_{\infty} < \text{tol},
 \end{equation}
 %
 where tol is a user-specified tolerance and
@@ -183,7 +184,7 @@ t_i =
 \end{aligned}
 \end{equation}
 %
-The breakpoints $t_i$ are sorted into an ordered
+The breakpoints $t_i$ are sorted into an ordered set
 $\{t^j : t^{j-1} < t^j, j=1,2,\dots,n \}$
 and each interval $[t^{j-1},t^j]$ is subsequently
 analyzed until a local minimizer $t^*$ is found.
@@ -208,7 +209,8 @@ vector $d_k = \alpha^* d^u$. This provides enough information to compute
 $\bar{x}_k$, the minimization to the subspace problem with
 the bounds imposed on the design variables.
 The details of the subspace minimization
-are given in Section 5.1 of \cite{lbfgsb} and is implemented
+are given in Section 5.1 of \cite{lbfgsb} and the method
+is implemented
 in \emph{LBFGS.m} in the routine
 \href{https://github.com/bgranzow/L-BFGS-B/blob/master/LBFGSB.m#L358}
 {subspace\_min}.
@@ -244,7 +246,7 @@ by Algorithms 3.5 and 3.6 of the reference
 Limited memory BFGS Hessian approximations store $m$ iteration
 pairs $Y_k = [y_{k-m}, y_{k-m+1}, \dots, y_{k-1}]$ and
 $S_k = [s_{k-m}, s_{k-m+1}, \dots, s_{k-1}]$ where
-$y_k = g_k - g_{k-1}$ and $s_k = s_k - s_{k-1}$, where the
+$y_k = g_k - g_{k-1}$ and $s_k = x_k - x_{k-1}$, where the
 Hessian approximation $B_k$ can be written as:
 %
 \begin{equation}
@@ -280,7 +282,9 @@ pairs for the L-BFGS data structures, and a convergence
 tolerance of $10^{-5}$. Using these two objective
 functions, six regression tests are defined.
 
-The first regression test is defined as the problem
+The
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m#L10}
+{first regression test} is defined as the problem
 %
 \begin{equation}
 \begin{aligned}
@@ -297,19 +301,25 @@ optimization problem and converges in a single quasi-Newton
 iteration to the correct solution
 $x_i = 0 \; \forall i$.
 
-The second regression test is identical to the first,
+The
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m#L24}
+{second regression test} is identical to the first,
 with the exception that the lower bound is set to $l = 1$
-rather than $10$. Again this regression test converges in a single
+rather than $-10$. Again this regression test converges in a single
 quasi-Newton iteration to the correct solution
 $x_i = 1 \; \forall i$.
 
-The third regression test is identical to the first,
+The
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m#L38}
+{third regression test} is identical to the first,
 with the exception that the initial guess is defined outside
 of the box-constraints, such that $x_i = -20 \; \forall i$.
 This test converges in two quasi-Newton iterations to the
 correct solution $x_i = 0 \; \forall i$.
 
-The fourth regression test is defined as
+The
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m#L52}
+{fourth regression test} is defined as
 %
 \begin{equation}
 \begin{aligned}
@@ -326,7 +336,8 @@ This test converges to the correct solution
 $x_i = 1 \; \forall i$ in one quasi-Newton iteration.
 
 To verify upper bounds can be properly satisfied, the
-fifth regression test is defined as:
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m#L66}
+{fifth regression test} is defined as:
 %
 \begin{equation}
 \begin{aligned}
@@ -342,7 +353,9 @@ $x_i = 5 \; \forall i$. This test converges
 correctly to the solution $x_i = 10 \; \forall i$
 in one quasi-Newton iteration.
 
-Finally, the sixth test is defined such that
+Finally, the
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_LBFGSB.m#L80}
+{sixth test} is defined such that
 a non-uniform lower bound constraint is set,
 where the optimization problem is defined as:
 \begin{equation}
@@ -354,28 +367,179 @@ where the optimization problem is defined as:
 \end{aligned}
 \end{equation}
 %
+which correctly converges to the solution
+$x_i = \sin(\pi \frac{1-i}{n}) \; \forall i$ in
+one quasi-Newton iteration.
 
 \subsection{A bounded Rosenbrock example}
 
+As a more extensive test of the L-BFGS-B implementation,
+a bounded Rosenbrock
+\href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_rosenbrock.m}
+{example} is included in the source distribution.
+We consider the Rosenbrock function defined as:
+%
 \begin{equation}
-f_3(\bs{x}) = 100(x_2-x_1^2)^2 + (1-x_1)^2 
+f_3(x) = 100(x_2-x_1^2)^2 + (1-x_1)^2,
 \end{equation}
-
-\begin{figure}[hbt]
+%
+where $x \in \mathbb{R}^2$.
+We first use the L-BFGS-B algorithm to solve the
+unconstrained minimization problem
+%
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f_3(x) \\
+& \text{subject to}
+& & -\infty < x < \infty  \quad
+\end{aligned}
+\end{equation}
+%
+with the initial guess $(x_1,x_2) = (-1.2, 1)$, using
+$m=10$ stored L-BFGS iteration pairs and a maximum
+number of quasi-Newton iterations of $100$.
+The search path for the unconstrained problem is
+shown in Figure \ref{fig:rosenbrock_unconstrained}.
+%
+\begin{figure}[hbt!]
 \centering
 \includegraphics[width=0.75\textwidth]{rosenbrock_unbounded}
-\caption{Search history for unconstrained Rosenbrock example}
+\caption{Search history for the unconstrained Rosenbrock example}
 \label{fig:rosenbrock_unconstrained}
 \end{figure}
+%
+Without active bound variables, the L-BFGS-B method essentially
+reduces to the standard L-BFGS method. This result gives us
+confidence that the L-BFGS data structures and updates
+are performed correctly in the \emph{LBFGS.m} implementation.
+The convergence history for the unconstrained Rosenbrock
+problem is shown in Figure \ref{fig:ros_unc_conv}.
+%
+\begin{figure}[hbt!]
+\scriptsize
+\centering
+\begin{BVerbatim}
+ iter        f(x)          optimality
+-------------------------------------
+  0      24.20000000     215.60000000
+  1       5.10111266      38.33803031
+  2       4.15378843       6.65579078
+  3       4.11721504       1.40757360
+  4       4.10921995       1.42455138
+  5       4.10922456       1.42457526
+  6       3.58186385      11.18575152
+  7       3.45470246      17.47839459
+  8       3.28544194      16.76380586
+  9       2.65947615      10.87782125
+ 10       2.22970801       5.83940028
+ 11       2.09539857       8.36664503
+ 12       1.75072527      11.07438171
+ 13       1.39706792       2.79021511
+ 14       1.11088550       4.82357799
+ 15       1.03878169       8.04442772
+ 16       0.79586966       3.26617858
+ 17       0.64945895       6.65883593
+ 18       0.46730756       1.11095742
+ 19       0.38120958       3.61380605
+ 20       0.30770768       5.10591921
+ 21       0.19454187       0.57434669
+ 22       0.15033422       2.04613244
+ 23       0.12796165       6.48492562
+ 24       0.07920583       0.77105145
+ 25       0.05289519       0.49482493
+ 26       0.03442939       2.68276032
+ 27       0.01970635       1.93274402
+ 28       0.00863828       0.32795662
+ 29       0.00470913       1.91555193
+ 30       0.00202819       0.48371906
+ 31       0.00035537       0.22332188
+ 32       0.00004326       0.18103267
+ 33       0.00000213       0.03578927
+ 34       0.00000012       0.00998035
+ 35       0.00000000       0.00006825
+ 36       0.00000000       0.00000511
+\end{BVerbatim}
+\caption{Convergence history for the unbounded Rosenbrock example}
+\label{fig:ros_unc_conv}
+\end{figure}
 
+As a second example, the Rosenbrock problem is modified
+to include a box constraint, such that the new problem
+definition is given as:
+\begin{equation}
+\begin{aligned}
+& \underset{x}{\text{minimize}}
+& & f_3(x) \\
+& \text{subject to}
+& & -0.5 \leq x_1 \leq 0.5, \\
+& & & -0.5 \leq x_2 \leq 0.5,
+\end{aligned}
+\end{equation}
+%
+where the initial guess is again given as
+$(x_1, x_2) = (-1.2, 1.0)$.
+The search path produced by the \emph{LBFGS.m} implementation
+is shown in Figure \ref{fig:rosenbrock_constrained}. Notice
+that the initial design is outside of the box constraints.
+The \emph{LBFGS.m} projects the initial design guess onto
+the feasible design space for the first iteration, and then
+proceeds as normally for subsequent iterations. Notice
+that once the design vector enters the `banana valley',
+it takes approximately the same path towards the global
+minimum that the unbounded Rosenbrock example takes.
+However, it finds a bounded minimum at the design location
+$x = (0.5,0.25)$. This result was corroborated by
+comparison to a result obtained via Matlab's robust optimization
+solver \emph{fmincon}. The convergence history for the
+bounded Rosenbrock example is shown in Figure \ref{fig:ros_con_conv}.
+%
 \begin{figure}[hbt]
 \centering
 \includegraphics[width=0.75\textwidth]{rosenbrock_bounded}
 \caption{Search history for constrained Rosenbrock example}
 \label{fig:rosenbrock_constrained}
 \end{figure}
+%
+\begin{figure}[hbt!]
+\scriptsize
+\centering
+\begin{BVerbatim}
+ iter        f(x)          optimality
+-------------------------------------
+  0       8.50000000       1.00000000
+  1      58.50000000       1.00000000
+  2       2.22755657       0.99250000
+  3       2.17219686       0.97383645
+  4       1.78942574       0.78413677
+  5       1.58869314       0.72538530
+  6       1.26415453       0.62376555
+  7       1.08833255       0.53790684
+  8       0.93554003       0.51145792
+  9       0.71623471       0.71067169
+ 10       0.56619271       0.44590189
+ 11       0.47950989       0.85958247
+ 12       0.34314773       0.93149460
+ 13       0.25780652       0.76709009
+ 14       0.25011825       0.21748547
+ 15       0.25000000       0.00000000
+\end{BVerbatim}
+\caption{Convergence history for the unbounded Rosenbrock example}
+\label{fig:ros_con_conv}
+\end{figure}
 
 \section{Conclusions}
+
+We have implemented a pure Matlab implementation of
+the L-BFGS-B algorithm for box-constrained gradient-based
+optimization. We have provided a high-level overview
+of the fundamental steps of the algorithm and provided
+references to the corresponding implementation
+locations of these steps in the \emph{LBFGS.m} code.
+The implementation has been verified for a series of
+simple tests. Further work includes verifying the
+implementation for a wider variety of optimization
+problems.
 
 \begin{thebibliography}{99}
 
