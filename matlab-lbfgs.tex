@@ -40,7 +40,7 @@ bound-constrained optimization problems of the form:
 where $f: \mathbb{R}^n \to \mathbb{R}$ and $x,l,u \in \mathbb{R}^n$.
 The L-BFGS-B algorithm is a quasi-Newton gradient-based
 optimization algorithm that utilizes limited memory
-BFGS approximations to the Hessian matrix
+BFGS approximations to the Hessian matrix,
 $\frac{\partial^2 f}{\partial x_i \partial x_j}$, making
 it well-suited for optimization problems with a large
 number of design variables $n$.
@@ -114,7 +114,7 @@ are identified as fixed at either an upper or lower bound)
 and free variables $F(x)$ (those that are identified as inside the
 feasible design space). Conceptually, this is like the algorithm
 `peeking ahead' an iteration to determine which variables will
-likely be active and inactive.
+likely be active or inactive.
 \item The quadratic model $m_k$ is then minimized for the set
 of free variables $F(x)$ in an unconstrained manner, and then
 backtracked into the feasible design space to obtain
@@ -132,7 +132,7 @@ to their implementation.
 
 \subsection{Convergence criteria}
 
-Convergence is satisfied if the following criteria holds:
+Convergence is satisfied if the following criterion holds:
 %
 \begin{equation}
 \| P(x_k - g_k,l,u) - x_k \|_{\infty} < \text{tol},
@@ -246,7 +246,7 @@ by Algorithms 3.5 and 3.6 of the reference
 Limited memory BFGS Hessian approximations store $m$ iteration
 pairs $Y_k = [y_{k-m}, y_{k-m+1}, \dots, y_{k-1}]$ and
 $S_k = [s_{k-m}, s_{k-m+1}, \dots, s_{k-1}]$ where
-$y_k = g_k - g_{k-1}$ and $s_k = x_k - x_{k-1}$, where the
+$y_k = g_k - g_{k-1}$ and $s_k = x_k - x_{k-1}$. Here the
 Hessian approximation $B_k$ can be written as:
 %
 \begin{equation}
@@ -376,7 +376,7 @@ one quasi-Newton iteration.
 As a more extensive test of the L-BFGS-B implementation,
 a bounded Rosenbrock
 \href{https://github.com/bgranzow/L-BFGS-B/blob/master/test_rosenbrock.m}
-{example} is included in the source distribution.
+{example}, is included in the source distribution.
 We consider the Rosenbrock function defined as:
 %
 \begin{equation}
@@ -484,7 +484,7 @@ is shown in Figure \ref{fig:rosenbrock_constrained}. Notice
 that the initial design is outside of the box constraints.
 The \emph{LBFGS.m} projects the initial design guess onto
 the feasible design space for the first iteration, and then
-proceeds as normally for subsequent iterations. Notice
+proceeds as normal for subsequent iterations. Notice
 that once the design vector enters the `banana valley',
 it takes approximately the same path towards the global
 minimum that the unbounded Rosenbrock example takes.
