@@ -78,8 +78,9 @@ while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
     Y = [Y y];
     S = [S s];
   else
-    Y(:,1:m-1) = Y(:,2:end);
-    S(:,1:m-1) = S(:,2:end);
+    kf=size(Y);
+    Y(:,1:kf(2)-1) = Y(:,2:end);
+    S(:,1:kf(2)-1) = S(:,2:end);
     Y(:,end) = y;
     S(:,end) = s;
   end
