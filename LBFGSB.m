@@ -67,14 +67,15 @@ while ( (get_optimality(x,g,l,u) > tol) && (k < max_iters) )
   [f,g] = feval(func, x);
   y = g - g_old;
   s = x - x_old;
-  curv = abs(transpose(s)*y);
+  curv = (transpose(s)*y); % NOTE: keep sign of curvature
   if (curv < eps)
     fprintf(' warning: negative curvature detected\n');
     fprintf('          skipping L-BFGS update\n');
     k = k+1;
     continue;
   end
-  if (k < m)
+  kf=size(Y); % Check actual size of stored Y
+  if (kf(2) < m)
     Y = [Y y];
     S = [S s];
   else
@@ -380,9 +381,6 @@ Z = [];
 for i=1:length(xc)
   if ( ( xc(i) ~= u(i) ) && ( xc(i) ~= l(i) ) )
     free_vars_idx = [free_vars_idx i];
-    unit = zeros(n,1);
-    unit(i) = 1;
-    Z = [Z unit];
   end
 end
 num_free_vars = length(free_vars_idx);
@@ -394,7 +392,10 @@ if (num_free_vars == 0)
 end
 
 % compute W^T Z, the restriction of W to free variables.
-WTZ = transpose(W)*Z;
+WTZ=zeros(length(c),num_free_vars); % length(c)=2*m
+for i=1:num_free_vars,
+  WTZ(:,i) = W(free_vars_idx(i),:);
+end
 
 % compute the reduced gradient of mk restricted to free variables.
 rr = g + theta*(xc-x) - W*(M*c);
